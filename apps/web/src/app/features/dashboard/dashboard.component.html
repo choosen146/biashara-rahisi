@@ -1,0 +1,167 @@
+<header class="page-head">
+  <div>
+    <p class="eyebrow">{{ today() }}</p>
+    <h1>{{ ui.t(greeting()) }}@if (firstName()) {, {{ firstName() }}}</h1>
+    <p class="muted">{{ ui.t('dash.subtitle', { org: store.org()?.name ?? '' }) }}</p>
+  </div>
+  @if (store.can('sales.create')) {
+    <a routerLink="/sales" [queryParams]="{ new: 1 }" class="btn primary head-cta"><tbms-icon name="plus" [size]="18" [stroke]="2.2" />{{ ui.t('dash.recordSale') }}</a>
+  }
+</header>
+
+@if (showSetup()) {
+  <section class="card setup-strip">
+    <div class="setup-head">
+      <div><h2>{{ ui.t('dash.setup') }}</h2><p class="muted">{{ ui.t('dash.setupHint') }}</p></div>
+      <span class="progress-num">{{ stepsDone() }}/{{ steps().length }}</span>
+    </div>
+    <div class="progress" role="progressbar" [attr.aria-valuenow]="stepsDone()" aria-valuemin="0" [attr.aria-valuemax]="steps().length">
+      <i [style.width.%]="(stepsDone() / steps().length) * 100"></i>
+    </div>
+    <ul class="steps">
+      @for (s of steps(); track s.label) {
+        <li><a [routerLink]="s.link" [class.done]="s.done">
+          <span class="tick">@if (s.done) { <tbms-icon name="check" [size]="13" [stroke]="3" /> }</span><span>{{ ui.t(s.label) }}</span>
+        </a></li>
+      }
+    </ul>
+  </section>
+}
+
+<div class="bento">
+  <section class="hero">
+    <span class="blob b1" aria-hidden="true"></span><span class="blob b2" aria-hidden="true"></span><span class="blob b3" aria-hidden="true"></span>
+    <div class="hero-top">
+      <span class="hero-label">{{ hero().label }}</span>
+      @if (hero().chip) { <span class="hero-chip" [class.neg]="hero().negative">{{ hero().chip }}</span> }
+    </div>
+    <div class="hero-value" [class.neg]="hero().negative"><tbms-count [value]="hero().raw" kind="money" [duration]="1200" /></div>
+    <p class="hero-hint">{{ hero().hint }}</p>
+    <div class="hero-bars" aria-hidden="true" [style.grid-template-columns]="'repeat(' + hero().bars.length + ', 1fr)'">
+      @for (b of hero().bars; track $index) {
+        <div class="hb" [attr.title]="b.title" [style.--i]="$index"><span class="hb-area"><i [style.height.%]="b.h" [class.neg]="b.negative" [class.zero]="b.empty"></i></span><small>{{ b.label }}</small></div>
+      }
+    </div>
+  </section>
+
+  <div class="kpis">
+    @for (k of kpis(); track k.key) {
+      <a class="card kpi" [class.alert]="k.alert" [routerLink]="k.link ?? null" [class.static]="!k.link">
+        <div class="kpi-head">
+          <span class="tone-badge" [attr.data-tone]="k.tone"><tbms-icon [name]="k.icon" [size]="18" /></span>
+          <span class="kpi-label">{{ k.label }}</span>
+        </div>
+        <div class="kpi-body">
+          <div class="kpi-value">@if (k.raw !== undefined) { <tbms-count [value]="k.raw" [kind]="k.kind ?? 'num'" /> } @else { {{ k.value }} }</div>
+          @if (k.ring !== undefined) { <tbms-ring [value]="k.ring" [from]="k.ringFrom ?? '#8b5cf6'" [to]="k.ringTo ?? '#d946ef'" /> }
+        </div>
+        <div class="kpi-foot">
+          @if (k.delta) {
+            <span class="delta" [class.good]="k.delta.good" [class.bad]="!k.delta.good">
+              <tbms-icon [name]="k.delta.pct >= 0 ? 'up' : 'down'" [size]="13" [stroke]="2.2" />{{ abs(k.delta.pct) }}%
+            </span>
+          }
+          <span class="foot-text">{{ k.foot }}</span>
+        </div>
+        @if (k.spark) { <tbms-spark class="kpi-spark" [values]="k.spark" [color]="k.sparkColor ?? '#6246ea'" /> }
+      </a>
+    }
+  </div>
+</div>
+
+<div class="row">
+  @if (finance()) {
+    <section class="card panel wide">
+      <div class="panel-head">
+        <div><h2>{{ ui.t('dash.cashflow') }}</h2><p class="muted">{{ ui.t('dash.cashflowHint') }}</p></div>
+        @if (hasSeriesData()) {
+          <div class="seg" role="tablist">
+            <button type="button" role="tab" [class.on]="view() === 'chart'" [attr.aria-selected]="view() === 'chart'" (click)="view.set('chart')"><tbms-icon name="chart" [size]="15" />{{ ui.t('dash.chart') }}</button>
+            <button type="button" role="tab" [class.on]="view() === 'table'" [attr.aria-selected]="view() === 'table'" (click)="view.set('table')"><tbms-icon name="table" [size]="15" />{{ ui.t('dash.table') }}</button>
+          </div>
+        }
+      </div>
+      @if (!hasSeriesData()) {
+        <div class="chart-empty">
+          <div class="ghost-bars" aria-hidden="true">@for (i of [38, 56, 44, 70, 52, 82]; track $index) { <i [style.height.%]="i"></i> }</div>
+          <p>{{ ui.t('dash.noData') }}</p>
+        </div>
+      } @else if (view() === 'chart') {
+        <tbms-cashflow-chart [data]="months()" [currency]="store.org()?.currency ?? 'TZS'" />
+      } @else {
+        <div class="table-wrap">
+          <table class="mini">
+            <thead><tr><th>{{ ui.t('dash.month') }}</th><th>{{ ui.t('dash.revenue') }}</th><th>{{ ui.t('dash.expenses') }}</th><th>{{ ui.t('dash.netShort') }}</th></tr></thead>
+            <tbody>@for (r of tableRows(); track r.month) {
+              <tr><td>{{ r.month }}</td><td>{{ r.revenue }}</td><td>{{ r.expenses }}</td><td [class.neg-text]="r.negative">{{ r.net }}</td></tr>
+            }</tbody>
+          </table>
+        </div>
+      }
+    </section>
+  } @else {
+    <section class="card panel wide">
+      <div class="panel-head"><div><h2>{{ ui.t('dash.activity') }}</h2></div></div>
+      <ng-container *ngTemplateOutlet="feed" />
+    </section>
+  }
+
+  @if (actions().length) {
+    <section class="card panel">
+      <div class="panel-head"><div><h2>{{ ui.t('dash.quick') }}</h2><p class="muted">{{ ui.t('dash.quickHint') }}</p></div></div>
+      <div class="actions">
+        @for (a of actions(); track a.link) {
+          <a class="action" [routerLink]="a.link" [queryParams]="{ new: 1 }">
+            <span class="tone-badge" [attr.data-tone]="a.tone"><tbms-icon [name]="a.icon" [size]="18" /></span>
+            <span class="action-text"><b>{{ ui.t(a.label) }}</b><small>{{ ui.t(a.hint) }}</small></span>
+            <tbms-icon name="chevron" [size]="18" class="chev" />
+          </a>
+        }
+      </div>
+    </section>
+  }
+</div>
+
+<div class="row">
+  @if (finance()) {
+    <section class="card panel wide">
+      <div class="panel-head"><div><h2>{{ ui.t('dash.activity') }}</h2></div>
+        @if (store.can('audit.view')) { <a routerLink="/audit" class="link">{{ ui.t('dash.seeAll') }}</a> }
+      </div>
+      <ng-container *ngTemplateOutlet="feed" />
+    </section>
+  }
+  @if (store.inventoryOn() && store.can('products.view')) {
+    <section class="card panel">
+      <div class="panel-head"><div><h2>{{ ui.t('dash.lowStockTitle') }}</h2></div>
+        <a routerLink="/inventory" class="link">{{ ui.t('dash.seeAll') }}</a>
+      </div>
+      @if (low().length) {
+        <ul class="low">
+          @for (l of low(); track l.product.id) {
+            <li>
+              <span class="low-main"><b>{{ l.product.name }}</b><small>{{ ui.t('prod.reorder') }}: {{ ui.num(l.product.reorderLevel) }}</small></span>
+              <span class="badge" [attr.data-s]="l.qty <= 0 ? 'OUT' : 'LOW'">{{ l.qty <= 0 ? ui.t('inv.out') : ui.t('dash.left', { n: ui.num(l.qty) }) }}</span>
+              @if (store.can('purchases.create')) {
+                <a class="icon-btn" routerLink="/purchases" [queryParams]="{ new: 1, product: l.product.id }" [attr.aria-label]="ui.t('dash.recordPurchase')" [attr.title]="ui.t('dash.recordPurchase')"><tbms-icon name="plus" [size]="16" /></a>
+              }
+            </li>
+          }
+        </ul>
+      } @else { <p class="muted empty-line">{{ ui.t('dash.lowStockEmpty') }}</p> }
+    </section>
+  }
+</div>
+
+<ng-template #feed>
+  @if (activity().length) {
+    <ul class="activity">
+      @for (a of activity(); track a.id) {
+        <li>
+          <span class="tone-badge" data-tone="violet"><tbms-icon [name]="a.icon" [size]="16" /></span>
+          <span class="act-main"><b>{{ a.text }}</b><small>{{ a.meta }}</small></span>
+        </li>
+      }
+    </ul>
+  } @else { <p class="muted empty-line">{{ ui.t('dash.activityEmpty') }}</p> }
+</ng-template>

@@ -1,0 +1,2 @@
+import { Module } from '@nestjs/common'; import { DashboardController } from './dashboard.controller'; import { DashboardService } from './dashboard.service'; import { PrismaService } from '../prisma.service'; import { JwtAuthGuard } from '../auth/jwt.guard'; import { TenantGuard } from '../auth/tenant.guard';
+@Module({controllers:[DashboardController],providers:[DashboardService,PrismaService,JwtAuthGuard,TenantGuard]}) export class DashboardModule{}

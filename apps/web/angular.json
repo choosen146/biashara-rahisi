@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json.schemastore.org/angular.json",
+  "version": 1,
+  "projects": {
+    "tbms": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "tbms",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:application",
+          "options": {
+            "outputPath": "dist/tbms",
+            "index": "src/index.html",
+            "browser": "src/main.ts",
+            "polyfills": [
+              "zone.js"
+            ],
+            "tsConfig": "tsconfig.app.json",
+            "styles": [
+              "src/styles.scss"
+            ],
+            "optimization": {
+              "styles": {
+                "inlineCritical": false
+              }
+            }
+          }
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "options": {
+            "buildTarget": "tbms:build",
+            "proxyConfig": "proxy.conf.json"
+          }
+        }
+      }
+    }
+  },
+  "cli": {
+    "analytics": false
+  }
+}

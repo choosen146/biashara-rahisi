@@ -1,6 +1,28 @@
-# Biashara Rahisi
+# TBMS — Tanzania Business Management System
 
-Biashara Rahisi ni mfumo wa usimamizi wa biashara nyingi kwa SMEs za Tanzania. Kifupi cha kiufundi cha mradi ni TBMS; jina linaloonekana kwa mtumiaji ni Biashara Rahisi. Hifadhi hii ina Angular web client, NestJS REST API, na PostgreSQL/Prisma data layer.
+TBMS is a multi-tenant business management foundation for Tanzanian SMEs. This repository contains an Angular web client, a NestJS REST API, and a PostgreSQL/Prisma data layer.
+
+## Clickable prototype (no API required)
+
+The Angular app currently runs as a self-contained prototype of the full MVP (SRS FR-001 to FR-014). All data lives in the browser: `apps/web/src/app/core/store.ts` stands in for the API and enforces the same rules the server must (tenant scoping, role permissions, all-or-nothing stock and sale mutations, idempotency keys, void-instead-of-edit, audit events). Sample data for two businesses is generated on first load by `core/seed.ts`.
+
+```
+npm install
+npm run start -w apps/web      # http://localhost:4200
+```
+
+Demo accounts (password `demo1234` for all):
+
+| Account | Role | Shows |
+| --- | --- | --- |
+| admin@demo.tz | Owner in both businesses | Every permission everywhere, plus the business switcher |
+| amina@demo.tz | Owner, Duka la Amina (Morogoro) | Everything: reports, team, settings |
+| juma@demo.tz | Manager in both businesses | Business switcher, tenant isolation |
+| rehema@demo.tz | Cashier | Sales-only navigation and dashboard |
+| baraka@demo.tz | Inventory officer | Stock, purchases, suppliers |
+| neema@demo.tz | Owner, Neema Hardware (Dar es Salaam) | A second, separate tenant |
+
+"Reset sample data" in Settings restores the seed. When the API is ready, replace the Store's methods with HTTP calls; the components only talk to the Store.
 
 ## Vertical slice
 

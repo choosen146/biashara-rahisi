@@ -1,0 +1,230 @@
+<header class="page-head">
+  <div>
+    <h1>{{ ui.t('sales.title') }}</h1>
+    <p>{{ ui.t('sales.subtitle') }}</p>
+  </div>
+  @if (store.can('sales.create')) {
+    <div class="head-actions">
+      <button type="button" class="btn primary" (click)="openForm()"><tbms-icon name="plus" [size]="18" [stroke]="2.2" />{{ ui.t('sales.new') }}</button>
+    </div>
+  }
+</header>
+
+<div class="stats">
+  <div class="stat"><span>{{ ui.t('dash.revenue') }}</span><strong>{{ ui.money(totals().revenue) }}</strong><small>{{ ui.t('rep.salesCount', { n: totals().count }) }}</small></div>
+  <div class="stat"><span>{{ ui.t('rep.received') }}</span><strong>{{ ui.money(totals().received) }}</strong></div>
+  <div class="stat" [class.warn]="totals().owing > 0"><span>{{ ui.t('rep.onCredit') }}</span><strong>{{ ui.money(totals().owing) }}</strong></div>
+</div>
+
+<section class="card table-card">
+  <div class="toolbar">
+    <label class="search"><tbms-icon name="search" [size]="16" />
+      <input type="search" [placeholder]="ui.t('common.search')" [ngModel]="q()" (ngModelChange)="q.set($event); limit.set(40)" [attr.aria-label]="ui.t('common.search')" />
+    </label>
+    <select [ngModel]="period()" (ngModelChange)="period.set($event); limit.set(40)" [attr.aria-label]="ui.t('common.date')">
+      <option value="today">{{ ui.t('per.today') }}</option>
+      <option value="thisMonth">{{ ui.t('per.thisMonth') }}</option>
+      <option value="lastMonth">{{ ui.t('per.lastMonth') }}</option>
+      <option value="last90">{{ ui.t('per.last90') }}</option>
+      <option value="thisYear">{{ ui.t('per.thisYear') }}</option>
+      <option value="all">{{ ui.t('common.all') }}</option>
+    </select>
+    <div class="seg" role="tablist">
+      <button type="button" [class.on]="filter() === 'all'" (click)="filter.set('all')">{{ ui.t('common.all') }}</button>
+      <button type="button" [class.on]="filter() === 'owing'" (click)="filter.set('owing')">{{ ui.t('sales.filter.owing') }}</button>
+      <button type="button" [class.on]="filter() === 'voided'" (click)="filter.set('voided')">{{ ui.t('common.voided') }}</button>
+    </div>
+    <span class="count">{{ filtered().length }}</span>
+  </div>
+
+  @if (visible().length) {
+    <table class="table">
+      <thead><tr>
+        <th>{{ ui.t('sales.number') }}</th><th>{{ ui.t('common.customer') }}</th><th class="num">{{ ui.t('common.itemsCol') }}</th>
+        <th class="num">{{ ui.t('common.total') }}</th><th>{{ ui.t('common.status') }}</th><th class="num">{{ ui.t('sales.balance') }}</th>
+      </tr></thead>
+      <tbody>
+        @for (s of visible(); track s.id) {
+          <tr class="click" [class.voided]="s.status === 'VOIDED'" (click)="openDetail(s.id)" tabindex="0" (keydown.enter)="openDetail(s.id)">
+            <td class="lead"><span class="strong">{{ s.number }}</span><span class="sub">{{ ui.dateTime(s.createdAt) }} · {{ ui.userName(s.createdBy) }}</span></td>
+            <td [attr.data-label]="ui.t('common.customer')">{{ customerName(s) }}</td>
+            <td class="num" [attr.data-label]="ui.t('common.itemsCol')">{{ ui.num(itemCount(s)) }}</td>
+            <td class="num strong" [attr.data-label]="ui.t('common.total')">{{ ui.money(s.total) }}</td>
+            <td [attr.data-label]="ui.t('common.status')">
+              @if (s.status === 'VOIDED') { <span class="badge" data-s="VOIDED">{{ ui.t('status.VOIDED') }}</span> }
+              @else { <span class="badge" [attr.data-s]="status(s)">{{ ui.t('status.' + status(s)) }}</span> }
+            </td>
+            <td class="num" [attr.data-label]="ui.t('sales.balance')" [class.neg]="s.status === 'COMPLETED' && balance(s) > 0">
+              {{ s.status === 'COMPLETED' && balance(s) > 0 ? ui.money(balance(s)) : '—' }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    @if (filtered().length > visible().length) {
+      <div class="table-more"><button type="button" class="btn secondary sm" (click)="limit.set(limit() + 40)">{{ ui.t('dash.seeAll') }} ({{ filtered().length - visible().length }})</button></div>
+    }
+  } @else {
+    <div class="empty">
+      <span class="empty-ic"><tbms-icon name="sales" [size]="26" /></span>
+      <p>{{ store.sales().length ? ui.t('common.noResults') : ui.t('sales.empty') }}</p>
+      @if (!store.sales().length && store.can('sales.create')) {
+        <button type="button" class="btn primary" (click)="openForm()"><tbms-icon name="plus" [size]="16" />{{ ui.t('sales.new') }}</button>
+      }
+    </div>
+  }
+</section>
+
+<!-- New sale -->
+<tbms-modal [open]="formOpen()" [title]="ui.t('sales.new')" size="wide" (closed)="formOpen.set(false)">
+  <form class="form" id="saleForm" (ngSubmit)="submit()">
+    @if (!store.inventoryOn()) { <div class="hint"><tbms-icon name="info" [size]="16" />{{ ui.t('sales.stockOff') }}</div> }
+
+    <div class="picker">
+      <label class="search-big"><tbms-icon name="search" [size]="18" />
+        <input type="search" [placeholder]="ui.t('sales.pickProduct')" [ngModel]="productQuery()" (ngModelChange)="productQuery.set($event)" name="pq" autocomplete="off" />
+      </label>
+      @if (productQuery()) {
+        <div class="results">
+          @for (p of results(); track p.id) {
+            <button type="button" class="result" (click)="addProduct(p)" [disabled]="tracks(p) && stockOf(p.id) <= 0">
+              <span class="r-main"><b>{{ p.name }}</b><small>{{ stockLabel(p) }}</small></span>
+              <span class="r-price">{{ ui.money(p.price) }}</span>
+            </button>
+          } @empty { <div class="r-empty">{{ ui.t('sales.nothingFound') }}</div> }
+        </div>
+      } @else if (quickPicks().length) {
+        <div class="chips">
+          @for (p of quickPicks(); track p.id) {
+            <button type="button" class="chip" (click)="addProduct(p)" [disabled]="tracks(p) && stockOf(p.id) <= 0"><tbms-icon name="plus" [size]="14" />{{ p.name }}</button>
+          }
+        </div>
+      }
+    </div>
+
+    @if (lines().length) {
+      <div class="cart">
+        @for (l of lines(); track l.productId; let i = $index) {
+          <div class="cart-line" [class.bad]="overStock(l)">
+            <div class="cl-name">
+              <b>{{ product(l.productId)?.name }}</b>
+              @if (tracks(product(l.productId))) {
+                <small [class.neg]="overStock(l)">{{ overStock(l) ? ui.t('sales.onlyN', { n: ui.num(stockOf(l.productId)) }) : ui.t('sales.inStock', { n: ui.num(stockOf(l.productId)) }) }}</small>
+              }
+            </div>
+            <div class="stepper">
+              <button type="button" (click)="step(i, -1)" [disabled]="l.quantity <= 1" aria-label="−"><tbms-icon name="minus" [size]="15" /></button>
+              <input type="number" min="0" step="any" [ngModel]="l.quantity" (ngModelChange)="setQty(i, $event)" [name]="'q' + i" [attr.aria-label]="ui.t('common.qty')" />
+              <button type="button" (click)="step(i, 1)" aria-label="+"><tbms-icon name="plus" [size]="15" /></button>
+            </div>
+            <label class="cl-price"><span>{{ ui.t('common.price') }}</span>
+              <input type="number" min="0" step="50" [ngModel]="l.unitPrice" (ngModelChange)="setPrice(i, $event)" [name]="'p' + i" />
+            </label>
+            <div class="cl-total">{{ ui.money(l.quantity * l.unitPrice) }}</div>
+            <button type="button" class="icon-btn" (click)="removeLine(i)" [attr.aria-label]="ui.t('common.remove')"><tbms-icon name="x" [size]="16" /></button>
+          </div>
+        }
+        <div class="total-row"><span>{{ ui.t('common.total') }}</span><span>{{ ui.money(total()) }}</span></div>
+      </div>
+
+      <div class="grid-2">
+        <label class="field">{{ ui.t('common.customer') }}
+          <select [(ngModel)]="customerId" name="customer">
+            <option value="">{{ ui.t('sales.walkIn') }}</option>
+            @for (c of store.customers(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+          </select>
+          @if (paidMode() !== 'full') { <small>{{ ui.t('sales.customerHint') }}</small> }
+        </label>
+        <label class="field">{{ ui.t('common.method') }}
+          <select [(ngModel)]="method" name="method" [disabled]="paidMode() === 'credit'">
+            @for (m of methods; track m) { <option [value]="m">{{ ui.t('pm.' + m) }}</option> }
+          </select>
+        </label>
+      </div>
+
+      <div class="field">{{ ui.t('sales.amountPaid') }}
+        <div class="seg pay-seg">
+          <button type="button" [class.on]="paidMode() === 'full'" (click)="paidMode.set('full')">{{ ui.t('sales.full') }}</button>
+          <button type="button" [class.on]="paidMode() === 'custom'" (click)="paidMode.set('custom'); paidAmount = 0">{{ ui.t('status.PARTIAL') }}</button>
+          <button type="button" [class.on]="paidMode() === 'credit'" (click)="paidMode.set('credit')">{{ ui.t('sales.credit') }}</button>
+        </div>
+        @if (paidMode() === 'custom') {
+          <input type="number" min="0" [max]="total()" step="500" [(ngModel)]="paidAmount" name="paid" />
+        }
+        @if (paidNow() < total()) {
+          <small class="due">{{ ui.t('sales.change') }}: <b>{{ ui.money(total() - paidNow()) }}</b></small>
+        }
+      </div>
+    }
+
+    @if (formError()) { <div class="form-error" role="alert"><tbms-icon name="alert" [size]="16" />{{ formError() }}</div> }
+  </form>
+  <div footer>
+    <button type="button" class="btn secondary" (click)="formOpen.set(false)">{{ ui.t('common.cancel') }}</button>
+    <button type="submit" form="saleForm" class="btn primary" [disabled]="busy() || !lines().length">
+      <tbms-icon name="check" [size]="17" [stroke]="2.2" />{{ ui.t('sales.complete') }} · {{ ui.money(total()) }}
+    </button>
+  </div>
+</tbms-modal>
+
+<!-- Sale detail -->
+<tbms-modal [open]="!!detail()" variant="drawer" [title]="detail()?.number ?? ''" [subtitle]="detail() ? ui.dateTime(detail()!.createdAt) + ' · ' + ui.userName(detail()!.createdBy) : ''" (closed)="detailId.set(null)">
+  @if (detail(); as s) {
+    <div class="detail-top">
+      @if (s.status === 'VOIDED') { <span class="badge" data-s="VOIDED">{{ ui.t('status.VOIDED') }}</span> }
+      @else { <span class="badge" [attr.data-s]="status(s)">{{ ui.t('status.' + status(s)) }}</span> }
+      <span class="muted">{{ customerName(s) }}</span>
+    </div>
+    @if (s.status === 'VOIDED') { <div class="hint"><tbms-icon name="ban" [size]="16" />{{ ui.t('common.reason') }}: {{ s.voidReason }}</div> }
+
+    <h3 class="section-title">{{ ui.t('sales.lines') }}</h3>
+    <ul class="lines">
+      @for (l of s.lines; track l.productId) {
+        <li><span>{{ product(l.productId)?.name }}<small>{{ ui.qty(l.quantity, product(l.productId)?.unit) }} × {{ ui.money(l.unitPrice) }}</small></span><span>{{ ui.money(l.quantity * l.unitPrice) }}</span></li>
+      }
+    </ul>
+    <div class="total-row"><span>{{ ui.t('common.total') }}</span><span>{{ ui.money(s.total) }}</span></div>
+    <dl class="kv mt">
+      <dt>{{ ui.t('sales.paid') }}</dt><dd>{{ ui.money(paidOf(s)) }}</dd>
+      <dt>{{ ui.t('sales.balance') }}</dt><dd [class.neg]="balance(s) > 0 && s.status === 'COMPLETED'">{{ ui.money(balance(s)) }}</dd>
+    </dl>
+
+    <h3 class="section-title">{{ ui.t('sales.payments') }}</h3>
+    @if (s.payments.length) {
+      <ul class="lines">
+        @for (p of s.payments; track p.id) {
+          <li><span>{{ ui.t('pm.' + p.method) }}<small>{{ ui.dateTime(p.at) }} · {{ ui.userName(p.by) }}</small></span><span>{{ ui.money(p.amount) }}</span></li>
+        }
+      </ul>
+    } @else { <p class="muted small">{{ ui.t('sales.noPayments') }}</p> }
+
+    @if (s.status === 'COMPLETED' && balance(s) > 0 && store.can('payments.record')) {
+      <form class="pay-box" (ngSubmit)="pay()">
+        <h3 class="section-title">{{ ui.t('sales.recordPayment') }}</h3>
+        <div class="grid-2">
+          <label class="field">{{ ui.t('common.amount') }}<input type="number" min="1" [max]="balance(s)" [(ngModel)]="payAmount" name="amt" /></label>
+          <label class="field">{{ ui.t('common.method') }}
+            <select [(ngModel)]="payMethod" name="pm">@for (m of methods; track m) { <option [value]="m">{{ ui.t('pm.' + m) }}</option> }</select>
+          </label>
+        </div>
+        <button type="submit" class="btn primary block mt"><tbms-icon name="cash" [size]="17" />{{ ui.t('sales.recordPayment') }}</button>
+      </form>
+    }
+
+    @if (s.status === 'COMPLETED' && store.can('sales.void')) {
+      <div class="void-box">
+        @if (!voiding()) {
+          <button type="button" class="btn ghost-btn" (click)="voiding.set(true)"><tbms-icon name="ban" [size]="16" />{{ ui.t('common.void') }}</button>
+        } @else {
+          <h3 class="section-title">{{ ui.t('sales.voidTitle') }}</h3>
+          <p class="muted small">{{ ui.t('sales.voidHint') }}</p>
+          <label class="field">{{ ui.t('common.reason') }}<textarea [(ngModel)]="voidReason" name="vr" rows="2"></textarea></label>
+          <div class="row-btns">
+            <button type="button" class="btn secondary" (click)="voiding.set(false)">{{ ui.t('common.cancel') }}</button>
+            <button type="button" class="btn danger" [disabled]="!voidReason.trim()" (click)="doVoid()">{{ ui.t('common.void') }}</button>
+          </div>
+        }
+      </div>
+    }
+  }
+</tbms-modal>
